@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@app": ["./src/App"],
+      "@globalStyles": ["./src/styles/global"]
+    },
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    "noImplicitAny": true,
+    "alwaysStrict": true
+  }
+}
