@@ -1,18 +1,33 @@
 'use strict';
+
 require('dotenv').config();
 
-const { PORT, HOST } = process.env;
+const buildApp = require('./app');
+const config = require('./src/config');
 
-const app = require('./app');
+const app = buildApp();
 
-const startServer = () => {
-  app.listen({ port: PORT, host: HOST }, (err, address) => {
-    if (err) {
-      app.log.error(err);
-      process.exit(1);
-    }
-    app.log.info(`Server listening on ${address}`);
-  });
+const shutdown = async signal => {
+  app.log.info(`${signal} received, shutting down`);
+  try {
+    await app.close();
+    process.exit(0);
+  } catch (error) {
+    app.log.error({ err: error }, 'graceful shutdown failed');
+    process.exit(1);
+  }
 };
 
-startServer();
+const start = async () => {
+  try {
+    const address = await app.listen({ port: config.port, host: config.host });
+    app.log.info(`Server listening on ${address}`);
+  } catch (error) {
+    app.log.error({ err: error }, 'failed to start server');
+    process.exit(1);
+  }
+};
+
+['SIGINT', 'SIGTERM'].forEach(signal => process.on(signal, () => shutdown(signal)));
+
+start();

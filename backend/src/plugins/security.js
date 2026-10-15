@@ -1,9 +1,11 @@
-const { CORS_WHITE_LIST, NODE_ENV } = process.env;
+'use strict';
+
+const config = require('../config');
 
 const rateLimitOptions = {
   global: true,
-  max: 100,
-  timeWindow: '1 minute',
+  max: config.rateLimit.max,
+  timeWindow: config.rateLimit.timeWindow,
   nameSpace: 'rate-limit',
 };
 
@@ -13,7 +15,6 @@ const helmetOptions = {
   crossOriginOpenerPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   dnsPrefetchControl: { allow: false },
-  expectCt: false,
   frameguard: false,
   hidePoweredBy: true,
   hsts: {
@@ -28,26 +29,14 @@ const helmetOptions = {
   xssFilter: false,
 };
 
+const denied = () => ({ message: 'Invalid origin', statusCode: 403 });
+
 const corsOptionDelegate = (origin, callback) => {
-  if (NODE_ENV === 'development') return callback(null, true);
-  if (!origin)
-    return callback(
-      {
-        message: 'Invalid origin',
-        statusCode: 403,
-      },
-      false,
-    );
-  const whiteList = CORS_WHITE_LIST.split(';');
-  const isWhiteListed = whiteList.some(url => url === origin);
-  if (!isWhiteListed)
-    return callback(
-      {
-        message: 'Invalid origin',
-        statusCode: 403,
-      },
-      false,
-    );
+  if (config.isDevelopment) return callback(null, true);
+  // Same-origin requests, health checks and server-to-server callers send no Origin header.
+  // CORS only governs browsers, so rejecting those would break tooling without adding safety.
+  if (!origin) return callback(null, true);
+  if (!config.corsWhiteList.includes(origin)) return callback(denied(), false);
   return callback(null, true);
 };
 

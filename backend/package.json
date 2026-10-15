@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "nodemon server.js",
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
     "format": "prettier --write ."
   },
   "dependencies": {

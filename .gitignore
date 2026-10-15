@@ -23,4 +23,6 @@
 **.sln
 **.sw?
 **/.yarn/*
-**/backend/.env
+**/.env
+**/.env.local
+!**/.env.example
