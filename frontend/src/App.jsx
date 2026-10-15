@@ -1,108 +1,115 @@
 import '@globalStyles';
 import { useState } from 'react';
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import SettingsPanel from '@/components/SettingsPanel';
+import MessageList from '@/components/MessageList';
+import Composer from '@/components/Composer';
+import { WarningIcon } from '@/components/icons';
+import { useConversations } from '@/hooks/useConversations';
+import { useSettings } from '@/hooks/useSettings';
+import { useChat } from '@/hooks/useChat';
+import { useTheme } from '@/hooks/useTheme';
 
-function ChatMessage({ message }) {
-  return <div className={`my-2 p-2 rounded ${message.role === 'user' ? 'bg-blue-500 text-white self-end' : 'bg-gray-300 text-black self-start'}`}>{message.content}</div>;
-}
-
-function ChatWindow({ messages }) {
-  return (
-    <div className='p-4 min-h-[80vh] max-h-[80vh] overflow-y-auto bg-gray-100 border rounded-lg'>
-      {messages.map((msg, index) => (
-        <ChatMessage
-          key={index}
-          message={msg}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ChatInput({ input, setInput, sendMessage, loading }) {
-  return (
-    <form
-      onSubmit={sendMessage}
-      className='flex gap-2 mt-4'>
-      <input
-        type='text'
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        placeholder='Type a message...'
-        className='flex-1 p-2 border rounded-lg'
-      />
-      <button
-        type='submit'
-        disabled={loading}
-        className='p-2 bg-blue-500 text-white rounded-lg disabled:bg-gray-400'>
-        {loading ? '' + 'Sending...' : 'Send Message'}
-      </button>
-    </form>
-  );
-}
+const STATUS_HINTS = {
+  loading: 'Connecting to the backend...',
+  empty: 'No provider configured. Add an API key to backend/.env and restart the server.',
+  error: 'Backend unreachable. Is it running on the URL in VITE_API_URL?',
+};
 
 function App() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const sendMessage = async e => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const { conversations, active, activeId, selectConversation, createConversation, deleteConversation, clearConversations, appendMessage, updateMessage, dropMessagesFrom } = useConversations();
+  const { settings, update, selectProvider, catalog, activeProvider, status, error, reload } = useSettings();
 
-    const userMessage = { role: 'user', content: input };
-    setMessages(prevMessages => [...prevMessages, userMessage]);
-    setInput('');
-    setLoading(true);
+  const { streaming, isStreaming, send, stop, regenerate } = useChat({
+    conversation: active,
+    settings,
+    appendMessage,
+    updateMessage,
+    dropMessagesFrom,
+  });
 
-    const aiMessage = { role: 'assistant', content: '' };
-    setMessages(prevMessages => [...prevMessages, aiMessage]);
+  const disabled = status !== 'ready';
+  const canRegenerate = active.messages.some(message => message.role === 'assistant');
 
-    try {
-      const eventSource = new EventSource(`http://127.0.0.1:5001/groq?message=${encodeURIComponent(input)}`);
-
-      eventSource.onmessage = event => {
-        try {
-          const parsedData = JSON.parse(event.data); // JSON olarak ayrıştır
-          if (parsedData.event === 'message') {
-            setMessages(prevMessages => {
-              const updatedMessages = [...prevMessages];
-              const lastMessage = updatedMessages[updatedMessages.length - 1];
-
-              if (lastMessage.role === 'assistant') {
-                lastMessage.content += parsedData.data; // Streaming içeriği ekliyoruz
-              }
-
-              return updatedMessages;
-            });
-          }
-          if (parsedData.event === 'end') {
-            eventSource.close();
-            setLoading(false);
-          }
-        } catch (error) {
-          console.error('JSON ayrıştırma hatası:', error, event.data);
-        }
-      };
-      eventSource.onerror = error => {
-        console.error('SSE Hatası:', error);
-        eventSource.close();
-        setLoading(false);
-      };
-    } catch (error) {
-      console.error('Hata:', error);
-      setLoading(false);
-    }
+  const handleSelect = id => {
+    selectConversation(id);
+    setSidebarOpen(false);
   };
 
   return (
-    <div className='w-full max-w-7xl  min-h-screen mx-auto p-4'>
-      <ChatWindow messages={messages} />
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        sendMessage={sendMessage}
-        loading={loading}
+    <div className='flex h-full bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100'>
+      <Sidebar
+        conversations={conversations}
+        activeId={activeId}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onSelect={handleSelect}
+        onCreate={() => {
+          createConversation();
+          setSidebarOpen(false);
+        }}
+        onDelete={deleteConversation}
+        onClearAll={clearConversations}
       />
+
+      <main className='flex min-w-0 flex-1 flex-col'>
+        <TopBar
+          title={active.title}
+          subtitle={disabled ? STATUS_HINTS[status] : `${activeProvider?.label || 'Provider'} / ${settings.model}`}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          settingsOpen={settingsOpen}
+          onToggleSettings={() => setSettingsOpen(open => !open)}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+
+        {settingsOpen && !disabled && (
+          <SettingsPanel
+            settings={settings}
+            catalog={catalog}
+            activeProvider={activeProvider}
+            onSelectProvider={selectProvider}
+            onUpdate={update}
+          />
+        )}
+
+        {status === 'error' && (
+          <div className='flex items-center justify-between gap-3 border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'>
+            <span className='flex items-center gap-2'>
+              <WarningIcon className='size-4 shrink-0' />
+              {error}
+            </span>
+            <button
+              type='button'
+              onClick={reload}
+              className='rounded-lg border border-rose-300 px-2 py-1 text-xs transition hover:bg-rose-100 dark:border-rose-800 dark:hover:bg-rose-900/40'>
+              Retry
+            </button>
+          </div>
+        )}
+
+        <MessageList
+          messages={active.messages}
+          streaming={streaming}
+          onPickSuggestion={send}
+          suggestionsDisabled={disabled || isStreaming}
+        />
+
+        <Composer
+          onSend={send}
+          onStop={stop}
+          onRegenerate={regenerate}
+          isStreaming={isStreaming}
+          canRegenerate={canRegenerate}
+          disabled={disabled}
+          hint={disabled ? STATUS_HINTS[status] : 'Enter to send, Shift+Enter for a new line. History stays in your browser.'}
+        />
+      </main>
     </div>
   );
 }
